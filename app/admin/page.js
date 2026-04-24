@@ -1,119 +1,110 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Navbar from '../../components/Navbar'
 import { supabase } from '../../lib/supabase'
 
-export default function Admin() {
-
-  const [stats, setStats] = useState({})
+export default function AdminPage() {
+  const [allowed, setAllowed] = useState(false)
+  const [draws, setDraws] = useState([])
+  const [users, setUsers] = useState([])
 
   useEffect(() => {
-    const load = async () => {
+    const auth = localStorage.getItem("adminAuth")
 
-      const { data: users } = await supabase.from('users_meta').select('*')
-      const { data: payments } = await supabase.from('payments').select('*')
-      const { data: draws } = await supabase.from('draws').select('*')
-
-      const active = users.filter(u => u.subscription_active).length
-
-      const revenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
-
-      setStats({
-        totalUsers: users.length,
-        activeUsers: active,
-        totalPayments: payments.length,
-        revenue,
-        totalDraws: draws.length
-      })
+    if (auth !== "true") {
+      window.location.href = "/admin/login"
+    } else {
+      setAllowed(true)
+      fetchData()
     }
-
-    load()
   }, [])
 
-  const runDraw = async () => {
+  const fetchData = async () => {
+    const { data: d } = await supabase
+      .from('draws')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    const drawNumbers = Array.from({ length: 5 }, () =>
+    const { data: u } = await supabase
+      .from('users_meta')
+      .select('*')
+
+    setDraws(d || [])
+    setUsers(u || [])
+  }
+
+  const runDraw = async () => {
+    const numbers = Array.from({ length: 5 }, () =>
       Math.floor(Math.random() * 45) + 1
     )
 
-    const { data: users } = await supabase
-      .from('users_meta')
-      .select('*')
-      .eq('subscription_active', true)
-
-    const winners_3 = []
-    const winners_4 = []
-    const winners_5 = []
-
-    for (let u of users) {
-      const { data: scores } = await supabase
-        .from('scores')
-        .select('score')
-        .eq('user_id', u.user_id)
-
-      const userNumbers = scores.map(s => s.score)
-
-      const matches = userNumbers.filter(n => drawNumbers.includes(n)).length
-
-      if (matches >= 3) winners_3.push(u.user_id)
-      if (matches >= 4) winners_4.push(u.user_id)
-      if (matches === 5) winners_5.push(u.user_id)
-    }
-
     await supabase.from('draws').insert({
-      numbers: drawNumbers,
-      winners_3,
-      winners_4,
-      winners_5
+      numbers,
+      month: new Date().getMonth() + 1,
+      year: new Date().getFullYear(),
+      winners: []
     })
 
-    alert("Draw completed")
+    fetchData()
   }
 
+  if (!allowed) return null
+
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white p-6">
 
-      <Navbar />
+      <h1 className="text-4xl font-bold mb-6">
+        Admin Dashboard
+      </h1>
 
-      <div className="p-8 max-w-5xl mx-auto">
+      {/* STATS */}
+      <div className="grid md:grid-cols-3 gap-4 mb-8">
 
-        <h1 className="text-3xl mb-8">Admin Dashboard</h1>
-
-        {/* STATS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-
-          <div className="bg-white/10 p-4 rounded-xl">
-            <p>Total Users</p>
-            <h2 className="text-2xl">{stats.totalUsers}</h2>
-          </div>
-
-          <div className="bg-white/10 p-4 rounded-xl">
-            <p>Active Users</p>
-            <h2 className="text-2xl">{stats.activeUsers}</h2>
-          </div>
-
-          <div className="bg-white/10 p-4 rounded-xl">
-            <p>Payments</p>
-            <h2 className="text-2xl">{stats.totalPayments}</h2>
-          </div>
-
-          <div className="bg-white/10 p-4 rounded-xl">
-            <p>Revenue</p>
-            <h2 className="text-2xl">₹{stats.revenue}</h2>
-          </div>
-
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+          <p className="text-gray-400">Total Users</p>
+          <p className="text-2xl font-bold">{users.length}</p>
         </div>
 
-        {/* DRAW BUTTON */}
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+          <p className="text-gray-400">Total Draws</p>
+          <p className="text-2xl font-bold">{draws.length}</p>
+        </div>
+
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+          <p className="text-gray-400">Active System</p>
+          <p className="text-green-400 font-bold">LIVE</p>
+        </div>
+
+      </div>
+
+      {/* ACTIONS */}
+      <div className="flex gap-4 mb-8">
+
         <button
           onClick={runDraw}
-          className="bg-white text-black px-6 py-3 rounded-xl"
+          className="bg-gradient-to-r from-green-400 to-green-600 px-6 py-3 rounded-xl font-semibold"
         >
-          Run Draw
+          Run Monthly Draw
         </button>
 
       </div>
+
+      {/* DRAW LIST */}
+      <div className="bg-white/5 p-6 rounded-2xl border border-white/10">
+
+        <h2 className="text-xl font-semibold mb-4">Recent Draws</h2>
+
+        {draws.map((d, i) => (
+          <div key={i} className="flex justify-between border-b border-white/10 py-2">
+            <span>{d.numbers?.join(', ')}</span>
+            <span className="text-gray-400">
+              {d.month}/{d.year}
+            </span>
+          </div>
+        ))}
+
+      </div>
+
     </div>
   )
 }

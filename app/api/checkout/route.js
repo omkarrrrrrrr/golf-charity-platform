@@ -1,26 +1,33 @@
 import Stripe from 'stripe'
 
+const stripe = new Stripe(process.env.STRIPE_SECRET)
+
 export async function POST(req) {
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET)
+    const { user_id, email } = await req.json()
 
-    const body = await req.json()
-    const { user_id, email } = body
-
-    if (!user_id || !email) {
-      return Response.json({ error: 'Missing user data' }, { status: 400 })
-    }
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
 
     const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
       mode: 'payment',
+
       line_items: [
         {
-          price: 'price_1TPTf6GcjOjWQqHhUtTLktyk', // 🔥 PUT YOUR REAL PRICE ID HERE
+          price_data: {
+            currency: 'inr',
+            product_data: {
+              name: 'Monthly Subscription',
+            },
+            unit_amount: 50000, // ₹500
+          },
           quantity: 1,
         },
       ],
-      success_url: process.env.NEXT_PUBLIC_BASE_URL + '/dashboard',
-      cancel_url: process.env.NEXT_PUBLIC_BASE_URL,
+
+      success_url: `${baseUrl}/dashboard`,
+      cancel_url: `${baseUrl}/dashboard`,
+
       metadata: {
         user_id,
         email,
@@ -28,13 +35,7 @@ export async function POST(req) {
     })
 
     return Response.json({ url: session.url })
-
   } catch (err) {
-    console.error("STRIPE ERROR:", err)
-
-    return Response.json(
-      { error: err.message },
-      { status: 500 }
-    )
+    return Response.json({ error: err.message })
   }
 }
