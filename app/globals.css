@@ -2,7 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+
+
 body {
-  background: #0B0F1A;
+  background: black;
   color: white;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+button {
+  transition: all 0.2s ease;
 }
